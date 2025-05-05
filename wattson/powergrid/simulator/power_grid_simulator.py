@@ -344,7 +344,8 @@ class PowerGridSimulator(PhysicalSimulator):
                         value = grid_value.raw_get_value()
                         if isinstance(value, (float, bool, int, str)):
                             export_dict[grid_value.get_identifier()] = value
-            self._export_thread.export(timestamp=t, values=export_dict)
+            pp_net = self._grid_model._pp_net
+            self._export_thread.export(timestamp=t, values=export_dict, pp_net=pp_net)
 
     def _on_value_change(self, grid_value: GridValue, old_value: Any, new_value: Any):
         for related in grid_value.get_related_grid_values():

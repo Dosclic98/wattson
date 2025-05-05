@@ -5,6 +5,7 @@ from pathlib import Path
 
 from wattson.time import WattsonTime, WattsonTimeType
 from wattson.util import get_logger
+import pandapower as pp
 
 
 class ExportThread(threading.Thread):
@@ -19,12 +20,13 @@ class ExportThread(threading.Thread):
         self._maximum_export_interval: float = maximum_export_interval
         self.logger = get_logger("ExportThread", "ExportThread")
 
-    def export(self, timestamp: float, values: dict):
+    def export(self, timestamp: float, values: dict, pp_net: pp.pandapowerNet = None):
         if not self._enable:
             return
         self._queue.put({
             "timestamp": timestamp,
-            "values": values
+            "values": values,
+            "pp_net": pp.to_json(pp_net)
         })
 
     def is_enabled(self) -> bool:
