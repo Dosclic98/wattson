@@ -3,6 +3,7 @@ from wautorunner.analyzer.experiment_analyzer import ExperimentAnalyzer
 from wautorunner.scenario.modifiers.modifier_interface import ModifierInterface
 from wautorunner.scenario.modifiers.modifier_concrete import MultiplyLoadsModifier, MultiplyGenerationModifier, SetAllSwitchesModifier
 from wautorunner.scenario.modifiers.modifier_concrete import SetSwitchesModifier, AttackerStrategyModifier, StrategyType, StrategyBuilder
+from wautorunner.scenario.modifiers.modifier_concrete import ExecTimeModifier
 from wattson.cosimulation.control.co_simulation_controller import CoSimulationController
 from wattson.cosimulation.simulators.network.emulators.wattson_network_emulator import WattsonNetworkEmulator
 import pandapower.topology as tp
@@ -26,7 +27,8 @@ class AutorunnerManager():
             targetPath=Path("wautorunner/scenarios/powerowl_example_final")
         ))
         self.modifiers: list[ModifierInterface] = kwargs.get("modifiers", 
-                                                        [MultiplyLoadsModifier(self.scenario, 2.0), 
+                                                        [ExecTimeModifier(self.scenario, 40.0),
+                                                         MultiplyLoadsModifier(self.scenario, 2.0), 
                                                          MultiplyGenerationModifier(self.scenario, 0.5),
                                                          SetSwitchesModifier(self.scenario, 
                                                                              status={
@@ -43,7 +45,7 @@ class AutorunnerManager():
                                                                                  ])
                                                         ])
 
-    def execute(self, period_s: float = 40):
+    def execute(self):
         """
         Execute the scenario with the given modifiers.
         """
@@ -80,7 +82,7 @@ class AutorunnerManager():
                 simple_plot(ppNet, plot_gens=True, plot_line_switches=True, plot_loads=True, plot_sgens=True)
                 plt.savefig(self.scenario.scenarioPath.joinpath("full-plot.png"))
                 simple_plotly(ppNet, filename=self.scenario.scenarioPath.joinpath("full-plot.html").absolute().__str__(), auto_open=False)
-                controller.join(period_s)    
+                controller.join(self.scenario.getExecTime())    
             except Exception as e:
                 print(traceback.format_exc())
             finally:

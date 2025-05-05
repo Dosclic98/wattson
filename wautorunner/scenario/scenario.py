@@ -26,6 +26,7 @@ class Scenario:
         self.powerGridFilePath: Path = self.scenarioPath.joinpath("power-grid.yml")
         self.powerGridModel: dict = self.getPowerGridModel()
         self._name = self.scenarioPath.name
+        self._execTime = None
 
     def getName(self) -> str:
         return self._name 
@@ -137,4 +138,9 @@ class Scenario:
     def getLineIndex(self, lineName: str) -> int:
         # lineName is line.i so we want to obtain i from lineName
         return int(lineName.split(".")[1])
-
+    
+    def getExecTime(self) -> float: 
+        return self._execTime
+    
+    def setExecTime(self, execTime: float):
+        self._execTime = execTime

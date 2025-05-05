@@ -155,3 +155,15 @@ class AttackerStrategyModifier(ModifierInterface):
         scriptConfig["strategy_type"] = self.strategyType.value
 
         self.scenario.saveScriptControllerConfig(config)
+
+class ExecTimeModifier(ModifierInterface):
+    """
+    Set the execution time of the scenario.
+    """
+
+    def __init__(self, scenario: Scenario, execTime: float) -> None:
+        super().__init__(scenario)
+        self.execTime = execTime
+
+    def modify(self) -> None:
+        self.scenario.setExecTime(self.execTime)
