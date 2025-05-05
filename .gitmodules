@@ -1,0 +1,3 @@
+[submodule "wautorunner"]
+	path = wautorunner
+	url = git@github.com:Dosclic98/wautorunner.git
