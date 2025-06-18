@@ -252,3 +252,4 @@ ubuntu/tmp/
 
 # wattson-autorunner
 wautorunner/scenarios/*_final
+wautorunner/scenarios/*_results

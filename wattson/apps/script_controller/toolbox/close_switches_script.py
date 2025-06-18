@@ -24,7 +24,7 @@ class CloseSwitchesScript(SoloScript):
         self._threads: Dict[int, threading.Thread] = {}
         self._terminate = threading.Event()
         # Number of seconds to wait before sending the counter command
-        self.close_delay = self.config.get("close_delay", 0)
+        self.action_delay = self.config.get("action_delay", 0)
         # Whether to explicitly wait for the MTU to be ready
         self.wait_for_mtu = self.config.get("wait_for_mtu", False)
         # A number of seconds to wait before starting (applies after the potential MTU wait)
@@ -41,17 +41,19 @@ class CloseSwitchesScript(SoloScript):
     def run(self):
         if self.wait_for_mtu:
             self.controller.wattson_client.event_wait(MTU_READY_EVENT)
-        if self.start_delay > 0 and self.strategy_type == "intermittent":
+        if self.start_delay > 0 and self.strategy_type in ["intermittent", "intermittent_closed", "intermittent_open"]:
             self.logger.info(f"Waiting {self.start_delay} seconds before starting the script")
             time.sleep(self.start_delay)
         self.logger.info("CloseSwitchesScript Started")
         self.grid_wrapper.on_element_update(self._on_element_update)
-        if self.strategy_type == "intermittent":
-            self.logger.info("Attack strategy: intermittent")
+        if self.strategy_type in ["intermittent", "intermittent_closed", "intermittent_open"]:
+            self.logger.info(f"Attack strategy: {self.strategy_type}")
             self._open_close_switches()
         elif self.strategy_type == "explicit":
             self.logger.info("Attack strategy: explicit")
             self._setup_explicit_strategy()
+        elif self.strategy_type == "no_action":
+            self.logger.info("Attack strategy: noaction")
 
     def stop(self):
         self._terminate.set()
@@ -59,17 +61,23 @@ class CloseSwitchesScript(SoloScript):
             if thread.is_alive():
                 thread.join()
 
-    def _delay_set_data_point(self, coa, ioa, value, delay):
+    def _delay_set_data_point(self, coa, ioa, value, oldValue, delay):
         # Wait for termination or the delay to pass
         if self._terminate.wait(delay):
             return
         
         self.logger.info(f"Sending {coa}.{ioa} = {value} - delay has passed")
         self.controller.set_data_point(coa, ioa, value, block=False)
+        # Maybe call here the queue_set_data_point for those points whose value has not changed
+        # because the on_element_update will not be called for them
+        if value == oldValue and self.strategy_type in ["intermittent_closed", "intermittent_open"]:
+            self.logger.info(f"Switch value did not change for {coa}.{ioa} - queuing next command to {value}")
+            self.queue_set_data_point(coa, ioa, value, oldValue)
+        
 
-    def queue_set_data_point(self, coa, ioa, value, delay=None):
+    def queue_set_data_point(self, coa, ioa, value, oldValue, delay=None):
         if delay is None:
-            delay = self.close_delay
+            delay = self.action_delay
         
         if not delay:
             self.logger.info(f"Sending {coa}.{ioa} = {value}")
@@ -77,14 +85,16 @@ class CloseSwitchesScript(SoloScript):
         else:
             # Queue the data point
             self.logger.info(f"Queueing {coa}.{ioa} = {value}")
-            t = threading.Thread(target=self._delay_set_data_point, args=(coa, ioa, value, delay))
+            t = threading.Thread(target=self._delay_set_data_point, args=(coa, ioa, value, oldValue, delay))
             t.start()
             self._threads[id(t)] = t
 
     def _on_element_update(self, grid_value: GridValue, old_value: Any, value: Any):
         if isinstance(grid_value.get_grid_element(), Switch):
+            self.logger.info(f"LOLLERZIX")
             switch = typing.cast(Switch, grid_value.get_grid_element())
             if self.only_on_change and old_value == value:
+                self.logger.info(f"Switch {switch.get_identifier()} value did not change - skipping")
                 return
 
             # Modify switch status
@@ -102,13 +112,22 @@ class CloseSwitchesScript(SoloScript):
             coa = info["coa"]
             ioa = info["ioa"]
             switchArr = [f"switch.{swIndex}" for swIndex in self.strategy]
-            if self.strategy_type == "intermittent" and switch.get_identifier() in switchArr:
+            if self.strategy_type in ["intermittent", "intermittent_closed", "intermittent_open"] and switch.get_identifier() in switchArr:
                 self.logger.info(f"Detected Switch {switch.get_identifier()} - modifying its state by setting {coa}.{ioa}")
-                # Negate the old value
-                self.queue_set_data_point(coa, ioa, not value)
-                self.logger.info(f"Switch {switch.get_identifier()} set as: {not value}")
+                if self.strategy_type == "intermittent":
+                    # Negate the old value
+                    self.queue_set_data_point(coa, ioa, not value, value)
+                    self.logger.info(f"Switch {switch.get_identifier()} set as: {not value}")
+                elif self.strategy_type == "intermittent_closed":
+                    # Set the switch to closed
+                    self.queue_set_data_point(coa, ioa, True, value)
+                    self.logger.info(f"Switch {switch.get_identifier()} set as: True")
+                elif self.strategy_type == "intermittent_open":
+                    # Set the switch to open
+                    self.queue_set_data_point(coa, ioa, False, value)
+                    self.logger.info(f"Switch {switch.get_identifier()} set as: False")
             else:
-                # For any other switch or for strategy_type explicit do not further alter its state
+                # For any other switch or for strategy_type explicit or noaction do not further alter its state
                 self.logger.info(f"Detected Switch {switch.get_identifier()} - no further modifications required {coa}.{ioa}")
 
     def _setup_explicit_strategy(self):
@@ -139,8 +158,9 @@ class CloseSwitchesScript(SoloScript):
             coa = info["coa"]
             ioa = info["ioa"]
             self.logger.info(f"COA: {coa}, IOA: {ioa}")
-            self.logger.info(f"Detected Switch {switchIdentifier} - queuing its state modification by setting {coa}.{ioa}")            
-            self.queue_set_data_point(coa, ioa, isClosed, time)
+            self.logger.info(f"Detected Switch {switchIdentifier} - queuing its state modification by setting {coa}.{ioa}")  
+            value: bool = switchesDict[switchIdentifier].get_measurement_value("is_closed")          
+            self.queue_set_data_point(coa, ioa, isClosed, value,  time)
             self.logger.info(f"Switch {switchIdentifier} set as: {isClosed} with delay {time}")
             
 
@@ -169,5 +189,15 @@ class CloseSwitchesScript(SoloScript):
                 self.logger.info(f"Detected Switch {switch.get_identifier()} - modifying its state by setting {coa}.{ioa}")
                 value: bool = switch.get_measurement_value("is_closed")
                 if switch.get_identifier() in switchArr:
-                    self.queue_set_data_point(coa, ioa, not value)
-                    self.logger.info(f"Switch {switch.get_identifier()} set as: {not value}")
+                    if self.strategy_type == "intermittent":
+                        # Negate the old value
+                        self.queue_set_data_point(coa, ioa, not value, value)
+                        self.logger.info(f"Switch {switch.get_identifier()} set as: {not value}")
+                    elif self.strategy_type == "intermittent_closed":
+                        # Set the switch to closed
+                        self.queue_set_data_point(coa, ioa, True, value)
+                        self.logger.info(f"Switch {switch.get_identifier()} set as: True")
+                    elif self.strategy_type == "intermittent_open":
+                        # Set the switch to open
+                        self.queue_set_data_point(coa, ioa, False, value)
+                        self.logger.info(f"Switch {switch.get_identifier()} set as: False")

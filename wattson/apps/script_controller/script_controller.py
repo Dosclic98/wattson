@@ -216,7 +216,7 @@ class ScriptControllerApp:
         self.power_grid_model = PandaPowerGridModel()
         self.power_grid_model.from_primitive_dict(self.remote_grid_model.to_primitive_dict())
 
-        self.grid_wrapper = GridWrapper(self.power_grid_model, self.datapoints, self.logger.getChild("GridModel"), wattson_time=self.wattson_time)
+        self.grid_wrapper = GridWrapper(self.power_grid_model, self.datapoints, self.logger.getChild("GridModel"), wattson_time=self.wattson_time, enable_state_estimation=True)
 
         # MTU connection
         self.logger.info(f"Connecting to MTU")
