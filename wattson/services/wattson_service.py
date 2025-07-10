@@ -251,6 +251,15 @@ class WattsonService(WattsonServiceInterface):
         if service is None:
             raise ServiceException(f"Service {service_id} not found")
         return service
+    
+    @staticmethod
+    def clean_service_instances():
+        """
+        Cleans up the service instances dictionary.
+        This is useful to reset the state.
+        """
+        WattsonService._instances.clear()
+        WattsonService._gid = 0
 
     def to_remote_representation(self) -> WattsonRemoteServiceRepresentation:
         return WattsonRemoteServiceRepresentation({

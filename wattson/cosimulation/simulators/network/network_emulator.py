@@ -398,6 +398,10 @@ class NetworkEmulator(Simulator):
                         networks.append(network)
         return networks
 
+    def stop(self):
+        self.logger.info("Cleaning-up service instances")
+        WattsonService.clean_service_instances()
+
     def get_unused_ip(self, subnet: ipaddress.IPv4Network) -> ipaddress.IPv4Address:
         used_ip_addresses = []
         for interface in self.get_interfaces():
