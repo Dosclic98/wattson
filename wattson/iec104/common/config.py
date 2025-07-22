@@ -2,7 +2,7 @@ COA_LENGTH = 2
 IOA_LENGTH = 3
 
 SERVER_DEFAULT_PORT = 2404
-SERVER_TICK_RATE_MS = 2000
+SERVER_TICK_RATE_MS = 1000 # Originally 2000
 # interval in seconds used to send periodic updates (COT=1) from server to client
 SERVER_UPDATE_PERIOD_S = 40     # Originally 10
 SERVER_UPDATE_PERIOD_MS = SERVER_UPDATE_PERIOD_S * 1000
