@@ -54,7 +54,7 @@ class PowerGridSimulator(PhysicalSimulator):
         self._rtu_map = {}
         self._grid_model = grid_model_class()
         self._simulator_thread: Optional[SimulationThread] = None
-        self._simulation_required = QueueEvent(max_queue_time_s=2, max_queue_interval_s=0.05)
+        self._simulation_required = QueueEvent(max_queue_time_s=1, max_queue_interval_s=0.05)
         self._required_sim_control_clients = set()
         self._profile_thread: Optional[ProfileLoader] = None
         self._export_thread: Optional[ExportThread] = None
