@@ -186,17 +186,57 @@ class CoSimulationController(WattsonQueryHandler):
     def stop(self):
         if self._stopped.is_set():
             return
+        
+        all_stopped = True
+        # Stop simulation control server with timeout
         self.logger.info("Stopping simulation control server")
         if self._simulation_control_server is not None:
-            self._simulation_control_server.stop()
+            try:
+                self._simulation_control_server.stop(timeout=20)
+            except Exception as e:
+                all_stopped = False
+                self.logger.error(f"Error stopping simulation control server: {e}")
+        
+        # Stop network emulation with timeout in separate thread
         self.logger.info("Stopping network emulation")
         if self.network_emulator is not None:
-            self.network_emulator.stop()
+            def stop_network_emulator():
+                try:
+                    self.network_emulator.stop()
+                except Exception as e:
+                    all_stopped = False
+                    self.logger.error(f"Error stopping network emulator: {e}")
+            
+            network_stop_thread = threading.Thread(target=stop_network_emulator, daemon=True)
+            network_stop_thread.start()
+            network_stop_thread.join(timeout=30)  # 30 second timeout
+            if network_stop_thread.is_alive():
+                all_stopped = False
+                self.logger.warning("Network emulator stop timed out after 30 seconds")
+        
+        # Stop physical simulator with timeout in separate thread
         self.logger.info("Stopping physical simulator")
         if self.physical_simulator is not None:
-            self.physical_simulator.stop()
-        self.logger.info("Goodbye")
-        self._stopped.set()
+            def stop_physical_simulator():
+                try:
+                    self.physical_simulator.stop()
+                except Exception as e:
+                    all_stopped = False
+                    self.logger.error(f"Error stopping physical simulator: {e}")
+            
+            physical_stop_thread = threading.Thread(target=stop_physical_simulator, daemon=True)
+            physical_stop_thread.start()
+            physical_stop_thread.join(timeout=30)  # 30 second timeout
+            if physical_stop_thread.is_alive():
+                all_stopped = False
+                self.logger.warning("Physical simulator stop timed out after 30 seconds")
+        
+        # If all components stopped successfully, set the stopped event
+        if all_stopped:
+            self._stopped.set()
+            self.logger.info("Goodbye")
+        else:
+            raise RuntimeError("Not all components stopped successfully. Some components may still be running.")
 
     def join(self, timeout: Optional[float] = None) -> bool:
         return self._stopped.wait(timeout=timeout)

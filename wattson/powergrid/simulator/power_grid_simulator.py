@@ -115,15 +115,25 @@ class PowerGridSimulator(PhysicalSimulator):
         self._simulation_required.queue()
 
     def stop(self):
+        timeout_seconds = 10
+        
         if self._profile_thread is not None and self._profile_thread.is_alive():
             self._profile_thread.stop()
-            self._profile_thread.join()
+            self._profile_thread.join(timeout=timeout_seconds)
+            if self._profile_thread.is_alive():
+                self.logger.warning(f"Profile thread did not stop within {timeout_seconds} seconds")
+        
         if self._simulator_thread is not None and self._simulator_thread.is_alive():
             self._simulator_thread.stop()
-            self._simulator_thread.join()
+            self._simulator_thread.join(timeout=timeout_seconds)
+            if self._simulator_thread.is_alive():
+                self.logger.warning(f"Simulator thread did not stop within {timeout_seconds} seconds")
+        
         if self._export_thread is not None and self._export_thread.is_alive():
             self._export_thread.stop()
-            self._export_thread.join()
+            self._export_thread.join(timeout=timeout_seconds)
+            if self._export_thread.is_alive():
+                self.logger.warning(f"Export thread did not stop within {timeout_seconds} seconds")
 
     @property
     def grid_model(self):
